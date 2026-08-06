@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>統率者戦 ライフカウンター</title>
+<style>
+  :root{
+    --bg:#0d0d12;
+    --panel:#17171f;
+    --line:rgba(255,255,255,.12);
+    --text:#f4f4f6;
+    --sub:#a6a6b3;
+    --danger:#ef4444;
+  }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; }
+  html,body{
+    height:100%; margin:0; overflow:hidden;
+    background:var(--bg); color:var(--text);
+    font-family:-apple-system,"Hiragino Kaku Gothic ProN","Yu Gothic",system-ui,sans-serif;
+  }
+  #app{ display:flex; flex-direction:column; height:100%; }
+
+  header{
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    padding:6px 10px; background:var(--panel); border-bottom:1px solid var(--line);
+    font-size:13px; z-index:10;
+  }
+  header h1{ font-size:14px; margin:0; margin-right:auto; color:var(--sub); font-weight:600; }
+  header label{ color:var(--sub); display:flex; align-items:center; gap:4px; }
+  header input[type=number]{
+    width:56px; background:#0d0d12; color:var(--text); border:1px solid var(--line);
+    border-radius:6px; padding:4px 6px; font-size:13px;
+  }
+  header button{
+    background:#2a2a35; color:var(--text); border:1px solid var(--line);
+    border-radius:6px; padding:6px 10px; font-size:13px; cursor:pointer;
+  }
+  header button:active{ transform:scale(.96); }
+
+  .board{
+    flex:1; display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr;
+    gap:3px; background:var(--line); overflow:hidden; min-height:0;
+  }
+  .player{
+    position:relative; display:flex; flex-direction:column; min-height:0; min-width:0;
+    background:var(--panel); overflow:hidden;
+  }
+  .player[data-rot="180"]{ transform:rotate(180deg); }
+  .accent{ height:4px; width:100%; flex:0 0 auto; }
+
+  .pname{
+    text-align:center; font-weight:700; font-size:clamp(12px,2.2vw,16px);
+    padding:4px 4px 0; color:var(--sub); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+
+  .lifewrap{
+    flex:1; display:flex; align-items:center; justify-content:center; gap:2%;
+    min-height:0; padding:2px 4px;
+  }
+  .lifebtn{
+    background:transparent; border:none; color:var(--text); cursor:pointer;
+    font-size:clamp(16px,3vw,26px); font-weight:700; opacity:.55; padding:6px 4px;
+  }
+  .lifebtn.big{ font-size:clamp(20px,4vw,34px); opacity:.75; }
+  .lifebtn:active{ opacity:1; transform:scale(.94); }
+  .lifenum{
+    font-size:clamp(38px,10vw,92px); font-weight:800; min-width:2ch; text-align:center; line-height:1;
+  }
+
+  .counters{
+    display:flex; justify-content:center; gap:4%; padding:2px 4px 4px; flex:0 0 auto;
+  }
+  .counter{
+    display:flex; flex-direction:column; align-items:center; gap:1px;
+    background:rgba(255,255,255,.04); border:1px solid var(--line); border-radius:8px;
+    padding:3px 6px; min-width:52px;
+  }
+  .counter .clabel{ font-size:clamp(9px,1.6vw,11px); color:var(--sub); }
+  .counter .crow{ display:flex; align-items:center; gap:5px; }
+  .counter button{
+    background:#2a2a35; color:var(--text); border:none; border-radius:5px;
+    width:clamp(18px,3.5vw,24px); height:clamp(18px,3.5vw,24px); font-size:clamp(12px,2vw,15px);
+    cursor:pointer; line-height:1;
+  }
+  .counter button:active{ transform:scale(.9); }
+  .counter .cval{ min-width:1.6em; text-align:center; font-weight:700; font-size:clamp(13px,2.4vw,17px); }
+  .counter.flag .cval{ color:var(--danger); }
+
+  .footbtns{
+    display:flex; gap:4px; padding:4px 6px; flex:0 0 auto;
+  }
+  .footbtns button{
+    flex:1; background:#22222c; color:var(--sub); border:1px solid var(--line); border-radius:7px;
+    padding:6px 2px; font-size:clamp(10px,1.8vw,12px); cursor:pointer;
+  }
+  .footbtns button:active{ transform:scale(.96); }
+
+  .panel{
+    position:absolute; inset:0; background:var(--panel); display:flex; flex-direction:column;
+    padding:6px; overflow-y:auto;
+  }
+  .panel h3{ margin:2px 0 6px; font-size:13px; color:var(--sub); text-align:center; }
+  .backbtn{
+    align-self:flex-start; background:#2a2a35; color:var(--text); border:1px solid var(--line);
+    border-radius:6px; padding:4px 10px; font-size:12px; cursor:pointer; margin-bottom:4px;
+  }
+  .cmdsrc{
+    border:1px solid var(--line); border-radius:8px; padding:4px 6px; margin-bottom:5px;
+    background:rgba(255,255,255,.03);
+  }
+  .cmdsrc .srchead{
+    display:flex; justify-content:space-between; align-items:center; font-size:11px; color:var(--sub); margin-bottom:2px;
+  }
+  .cmdsrc .srchead .total{ font-weight:700; color:var(--text); }
+  .cmdsrc .srchead .total.lethal{ color:var(--danger); }
+  .cmdrow{ display:flex; align-items:center; gap:6px; padding:2px 0; }
+  .cmdrow .cname{ flex:1; font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .cmdrow button{
+    background:#2a2a35; color:var(--text); border:none; border-radius:5px;
+    width:24px; height:24px; font-size:14px; cursor:pointer;
+  }
+  .cmdrow button:active{ transform:scale(.9); }
+  .cmdrow .cdval{ min-width:2ch; text-align:center; font-weight:700; font-size:14px; }
+
+  .settingsForm label{ display:block; font-size:11px; color:var(--sub); margin:6px 0 2px; }
+  .settingsForm input[type=text]{
+    width:100%; background:#0d0d12; color:var(--text); border:1px solid var(--line);
+    border-radius:6px; padding:6px 8px; font-size:13px;
+  }
+  .settingsForm .partnerRow{ display:flex; align-items:center; gap:6px; margin-top:8px; }
+  .settingsForm .partnerRow input{ width:auto; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>統率者戦 ライフカウンター (4人)</h1>
+    <label>開始ライフ <input id="startLifeInput" type="number" step="1"></label>
+    <button id="newGameBtn">新しいゲーム</button>
+    <button id="resetAllBtn">全リセット</button>
+  </header>
+  <div class="board" id="board"></div>
+</div>
+
+<script>
+const STORAGE_KEY = "mtg_cmdr_counter_v1";
+const COLORS = ["#e11d48", "#2563eb", "#16a34a", "#d97706"];
+// レイアウト位置: 0=左上(180度回転), 1=右上(180度回転), 2=左下, 3=右下
+const ROT = [180, 180, 0, 0];
+
+function defaultPlayer(i){
+  return {
+    name: "プレイヤー " + (i+1),
+    life: 40,
+    poison: 0,
+    energy: 0,
+    experience: 0,
+    partner: false,
+    cmdNames: ["統率者", "統率者2"],
+    cmdDamage: { 0:[0,0], 1:[0,0], 2:[0,0], 3:[0,0] }
+  };
+}
+
+function defaultState(){
+  return {
+    startingLife: 40,
+    players: [0,1,2,3].map(defaultPlayer)
+  };
+}
+
+let state = loadState();
+let uiView = ["main","main","main","main"]; // main | cmd | settings
+
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return defaultState();
+    const parsed = JSON.parse(raw);
+    if(!parsed.players || parsed.players.length !== 4) return defaultState();
+    return parsed;
+  }catch(e){ return defaultState(); }
+}
+function saveState(){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function clamp0(n){ return n < 0 ? 0 : n; }
+
+function render(){
+  const board = document.getElementById("board");
+  board.innerHTML = "";
+  document.getElementById("startLifeInput").value = state.startingLife;
+
+  state.players.forEach((p, i) => {
+    const card = document.createElement("div");
+    card.className = "player";
+    card.dataset.rot = ROT[i];
+    card.style.setProperty("--pcolor", COLORS[i]);
+
+    const accent = document.createElement("div");
+    accent.className = "accent";
+    accent.style.background = COLORS[i];
+    card.appendChild(accent);
+
+    if(uiView[i] === "cmd"){
+      card.appendChild(buildCmdPanel(i));
+    }else if(uiView[i] === "settings"){
+      card.appendChild(buildSettingsPanel(i));
+    }else{
+      card.appendChild(buildMainView(i));
+    }
+
+    board.appendChild(card);
+  });
+}
+
+function buildMainView(i){
+  const p = state.players[i];
+  const wrap = document.createElement("div");
+  wrap.style.display = "flex";
+  wrap.style.flexDirection = "column";
+  wrap.style.flex = "1";
+  wrap.style.minHeight = "0";
+
+  const nameEl = document.createElement("div");
+  nameEl.className = "pname";
+  nameEl.textContent = p.name;
+  wrap.appendChild(nameEl);
+
+  const lifewrap = document.createElement("div");
+  lifewrap.className = "lifewrap";
+  lifewrap.innerHTML = `
+    <button class="lifebtn" data-act="life" data-delta="-5">−5</button>
+    <button class="lifebtn big" data-act="life" data-delta="-1">−</button>
+    <div class="lifenum">${p.life}</div>
+    <button class="lifebtn big" data-act="life" data-delta="1">＋</button>
+    <button class="lifebtn" data-act="life" data-delta="5">＋5</button>
+  `;
+  wrap.appendChild(lifewrap);
+
+  const counters = document.createElement("div");
+  counters.className = "counters";
+  counters.appendChild(buildCounter(i, "poison", "☠ 毒", p.poison, p.poison >= 10));
+  counters.appendChild(buildCounter(i, "energy", "⚡ エネルギー", p.energy, false));
+  counters.appendChild(buildCounter(i, "experience", "✨ 経験", p.experience, false));
+  wrap.appendChild(counters);
+
+  const foot = document.createElement("div");
+  foot.className = "footbtns";
+  foot.innerHTML = `
+    <button data-act="showCmd">⚔ 統率者ダメージ</button>
+    <button data-act="showSettings">⚙ 設定</button>
+  `;
+  wrap.appendChild(foot);
+
+  wrap.addEventListener("click", (e) => {
+    const t = e.target.closest("button");
+    if(!t) return;
+    const act = t.dataset.act;
+    if(act === "life"){
+      p.life += parseInt(t.dataset.delta, 10);
+      saveState(); render();
+    }else if(act === "counter"){
+      const field = t.dataset.field;
+      const delta = parseInt(t.dataset.delta, 10);
+      p[field] = clamp0(p[field] + delta);
+      saveState(); render();
+    }else if(act === "showCmd"){
+      uiView[i] = "cmd"; render();
+    }else if(act === "showSettings"){
+      uiView[i] = "settings"; render();
+    }
+  });
+
+  return wrap;
+}
+
+function buildCounter(i, field, label, value, flagged){
+  const el = document.createElement("div");
+  el.className = "counter" + (flagged ? " flag" : "");
+  el.innerHTML = `
+    <div class="clabel">${label}</div>
+    <div class="crow">
+      <button data-act="counter" data-field="${field}" data-delta="-1">−</button>
+      <div class="cval">${value}</div>
+      <button data-act="counter" data-field="${field}" data-delta="1">＋</button>
+    </div>
+  `;
+  return el;
+}
+
+function buildCmdPanel(i){
+  const p = state.players[i];
+  const panel = document.createElement("div");
+  panel.className = "panel";
+
+  const back = document.createElement("button");
+  back.className = "backbtn";
+  back.textContent = "← 戻る";
+  back.addEventListener("click", () => { uiView[i] = "main"; render(); });
+  panel.appendChild(back);
+
+  const h = document.createElement("h3");
+  h.textContent = "受けた統率者ダメージ";
+  panel.appendChild(h);
+
+  [0,1,2,3].forEach(src => {
+    if(src === i) return;
+    const sp = state.players[src];
+    const slots = sp.partner ? [0,1] : [0];
+    const total = slots.reduce((s, slot) => s + p.cmdDamage[src][slot], 0);
+
+    const box = document.createElement("div");
+    box.className = "cmdsrc";
+    box.style.borderLeft = "3px solid " + COLORS[src];
+
+    const head = document.createElement("div");
+    head.className = "srchead";
+    head.innerHTML = `<span>${sp.name}</span><span class="total${total >= 21 ? " lethal" : ""}">${total} / 21</span>`;
+    box.appendChild(head);
+
+    slots.forEach(slot => {
+      const row = document.createElement("div");
+      row.className = "cmdrow";
+      const cname = sp.cmdNames[slot] || (slot === 0 ? "統率者" : "統率者2");
+      row.innerHTML = `
+        <span class="cname">${cname}</span>
+        <button data-act="cmd" data-src="${src}" data-slot="${slot}" data-delta="-1">−</button>
+        <span class="cdval">${p.cmdDamage[src][slot]}</span>
+        <button data-act="cmd" data-src="${src}" data-slot="${slot}" data-delta="1">＋</button>
+      `;
+      box.appendChild(row);
+    });
+
+    panel.appendChild(box);
+  });
+
+  panel.addEventListener("click", (e) => {
+    const t = e.target.closest("button");
+    if(!t || t.dataset.act !== "cmd") return;
+    const src = parseInt(t.dataset.src, 10);
+    const slot = parseInt(t.dataset.slot, 10);
+    const delta = parseInt(t.dataset.delta, 10);
+    const cur = p.cmdDamage[src][slot];
+    const next = clamp0(cur + delta);
+    const applied = next - cur;
+    p.cmdDamage[src][slot] = next;
+    p.life -= applied; // 統率者ダメージはライフにも反映
+    saveState(); render();
+  });
+
+  return panel;
+}
+
+function buildSettingsPanel(i){
+  const p = state.players[i];
+  const panel = document.createElement("div");
+  panel.className = "panel";
+
+  const back = document.createElement("button");
+  back.className = "backbtn";
+  back.textContent = "← 戻る";
+  back.addEventListener("click", () => { uiView[i] = "main"; render(); });
+  panel.appendChild(back);
+
+  const h = document.createElement("h3");
+  h.textContent = "プレイヤー設定";
+  panel.appendChild(h);
+
+  const form = document.createElement("div");
+  form.className = "settingsForm";
+  form.innerHTML = `
+    <label>プレイヤー名</label>
+    <input type="text" id="nameInput${i}" value="${escapeAttr(p.name)}">
+
+    <label>統率者名</label>
+    <input type="text" id="cmd0Input${i}" value="${escapeAttr(p.cmdNames[0])}">
+
+    <div class="partnerRow">
+      <input type="checkbox" id="partnerChk${i}" ${p.partner ? "checked" : ""}>
+      <label style="margin:0;" for="partnerChk${i}">パートナー統率者を使用</label>
+    </div>
+
+    <div id="cmd2Wrap${i}" style="display:${p.partner ? "block" : "none"};">
+      <label>統率者2の名前</label>
+      <input type="text" id="cmd1Input${i}" value="${escapeAttr(p.cmdNames[1])}">
+    </div>
+  `;
+  panel.appendChild(form);
+
+  form.querySelector("#nameInput" + i).addEventListener("input", (e) => {
+    p.name = e.target.value; saveState();
+  });
+  form.querySelector("#cmd0Input" + i).addEventListener("input", (e) => {
+    p.cmdNames[0] = e.target.value; saveState();
+  });
+  form.querySelector("#cmd1Input" + i).addEventListener("input", (e) => {
+    p.cmdNames[1] = e.target.value; saveState();
+  });
+  form.querySelector("#partnerChk" + i).addEventListener("change", (e) => {
+    p.partner = e.target.checked;
+    form.querySelector("#cmd2Wrap" + i).style.display = p.partner ? "block" : "none";
+    saveState();
+  });
+
+  return panel;
+}
+
+function escapeAttr(s){
+  return String(s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
+}
+
+document.getElementById("startLifeInput").addEventListener("change", (e) => {
+  const v = parseInt(e.target.value, 10);
+  state.startingLife = isNaN(v) ? 40 : v;
+  saveState();
+});
+
+document.getElementById("newGameBtn").addEventListener("click", () => {
+  if(!confirm("新しいゲームを開始しますか?\nライフ・毒・経験・エネルギー・統率者ダメージがリセットされます(名前は保持されます)。")) return;
+  state.players.forEach(p => {
+    p.life = state.startingLife;
+    p.poison = 0;
+    p.energy = 0;
+    p.experience = 0;
+    p.cmdDamage = { 0:[0,0], 1:[0,0], 2:[0,0], 3:[0,0] };
+  });
+  uiView = ["main","main","main","main"];
+  saveState(); render();
+});
+
+document.getElementById("resetAllBtn").addEventListener("click", () => {
+  if(!confirm("全データ(名前・統率者名も含む)を初期化しますか?")) return;
+  state = defaultState();
+  uiView = ["main","main","main","main"];
+  saveState(); render();
+});
+
+render();
+</script>
+</body>
+</html>
