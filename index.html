@@ -32,6 +32,10 @@
     width:56px; background:#0d0d12; color:var(--text); border:1px solid var(--line);
     border-radius:6px; padding:4px 6px; font-size:13px;
   }
+  header select{
+    background:#0d0d12; color:var(--text); border:1px solid var(--line);
+    border-radius:6px; padding:4px 6px; font-size:13px;
+  }
   header button{
     background:#2a2a35; color:var(--text); border:1px solid var(--line);
     border-radius:6px; padding:6px 10px; font-size:13px; cursor:pointer;
@@ -39,7 +43,7 @@
   header button:active{ transform:scale(.96); }
 
   .board{
-    flex:1; display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr;
+    flex:1; display:grid;
     gap:3px; background:var(--line); overflow:hidden; min-height:0;
   }
   .player{
@@ -135,7 +139,15 @@
 <body>
 <div id="app">
   <header>
-    <h1>統率者戦 ライフカウンター (4人)</h1>
+    <h1>統率者戦 ライフカウンター</h1>
+    <label>人数
+      <select id="playerCountInput">
+        <option value="1">1人</option>
+        <option value="2">2人</option>
+        <option value="3">3人</option>
+        <option value="4">4人</option>
+      </select>
+    </label>
     <label>開始ライフ <input id="startLifeInput" type="number" step="1"></label>
     <button id="newGameBtn">新しいゲーム</button>
     <button id="resetAllBtn">全リセット</button>
@@ -146,8 +158,14 @@
 <script>
 const STORAGE_KEY = "mtg_cmdr_counter_v1";
 const COLORS = ["#e11d48", "#2563eb", "#16a34a", "#d97706"];
-// レイアウト位置: 0=左上(180度回転), 1=右上(180度回転), 2=左下, 3=右下
-const ROT = [180, 180, 0, 0];
+
+// 人数ごとの画面分割レイアウト。rot は各カードの回転角度(テーブルを囲んで座る想定)。
+const LAYOUTS = {
+  1: { areas: ["p0"],        rot: [0] },
+  2: { areas: ["p0","p1"],   rot: [180, 0] },
+  3: { areas: ["p0 p0","p1 p2"], rot: [180, 0, 0] },
+  4: { areas: ["p0 p1","p2 p3"], rot: [180, 180, 0, 0] }
+};
 
 function defaultPlayer(i){
   return {
@@ -165,6 +183,7 @@ function defaultPlayer(i){
 function defaultState(){
   return {
     startingLife: 40,
+    playerCount: 4,
     players: [0,1,2,3].map(defaultPlayer)
   };
 }
@@ -178,6 +197,7 @@ function loadState(){
     if(!raw) return defaultState();
     const parsed = JSON.parse(raw);
     if(!parsed.players || parsed.players.length !== 4) return defaultState();
+    if(!LAYOUTS[parsed.playerCount]) parsed.playerCount = 4;
     return parsed;
   }catch(e){ return defaultState(); }
 }
@@ -191,11 +211,19 @@ function render(){
   const board = document.getElementById("board");
   board.innerHTML = "";
   document.getElementById("startLifeInput").value = state.startingLife;
+  document.getElementById("playerCountInput").value = state.playerCount;
 
-  state.players.forEach((p, i) => {
+  const layout = LAYOUTS[state.playerCount];
+  const cols = Math.max(...layout.areas.map(row => row.split(" ").length));
+  board.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+  board.style.gridTemplateRows = `repeat(${layout.areas.length}, 1fr)`;
+  board.style.gridTemplateAreas = layout.areas.map(row => `"${row}"`).join(" ");
+
+  state.players.slice(0, state.playerCount).forEach((p, i) => {
     const card = document.createElement("div");
     card.className = "player";
-    card.dataset.rot = ROT[i];
+    card.style.gridArea = "p" + i;
+    card.dataset.rot = layout.rot[i];
     card.style.setProperty("--pcolor", COLORS[i]);
 
     const accent = document.createElement("div");
@@ -249,7 +277,7 @@ function buildMainView(i){
   const foot = document.createElement("div");
   foot.className = "footbtns";
   foot.innerHTML = `
-    <button data-act="showCmd">⚔ 統率者ダメージ</button>
+    ${state.playerCount > 1 ? '<button data-act="showCmd">⚔ 統率者ダメージ</button>' : ""}
     <button data-act="showSettings">⚙ 設定</button>
   `;
   wrap.appendChild(foot);
@@ -305,7 +333,7 @@ function buildCmdPanel(i){
   h.textContent = "受けた統率者ダメージ";
   panel.appendChild(h);
 
-  [0,1,2,3].forEach(src => {
+  Array.from({length: state.playerCount}, (_, n) => n).forEach(src => {
     if(src === i) return;
     const sp = state.players[src];
     const slots = sp.partner ? [0,1] : [0];
@@ -410,6 +438,11 @@ function buildSettingsPanel(i){
 function escapeAttr(s){
   return String(s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
 }
+
+document.getElementById("playerCountInput").addEventListener("change", (e) => {
+  state.playerCount = parseInt(e.target.value, 10);
+  saveState(); render();
+});
 
 document.getElementById("startLifeInput").addEventListener("change", (e) => {
   const v = parseInt(e.target.value, 10);
